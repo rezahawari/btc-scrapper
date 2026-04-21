@@ -217,7 +217,7 @@ async function runTask(taskId: string) {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 8000;
 
   app.use(express.json({ limit: '10mb' }));
   app.use(cors());
