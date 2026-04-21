@@ -26,6 +26,7 @@ interface ScrapingTask {
     selectors: { name: string, selector: string }[];
     spreadsheetId: string;
     credentials: any;
+    pageDelay?: number;
   };
 }
 
@@ -201,7 +202,8 @@ async function runTask(taskId: string) {
       }
 
       // Small delay
-      await new Promise(r => setTimeout(r, 1000));
+      const delayMs = (task.config.pageDelay || 1) * 1000;
+      await new Promise(r => setTimeout(r, delayMs));
     }
 
     if (task.status !== 'cancelled') {
@@ -224,7 +226,7 @@ async function startServer() {
 
   // Task Endpoints
   app.post('/api/tasks', (req, res) => {
-    const { url, selectors, spreadsheetId, credentials, totalPages } = req.body;
+    const { url, selectors, spreadsheetId, credentials, totalPages, pageDelay } = req.body;
     const id = Math.random().toString(36).substring(2, 9);
     
     tasks[id] = {
@@ -241,7 +243,8 @@ async function startServer() {
         url,
         selectors,
         spreadsheetId,
-        credentials: JSON.parse(credentials)
+        credentials: JSON.parse(credentials),
+        pageDelay: Number(pageDelay) || 1
       }
     };
 

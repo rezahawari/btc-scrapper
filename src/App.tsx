@@ -64,9 +64,10 @@ export default function App() {
   const [tasks, setTasks] = useState<BackgroundTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
-  // Pagination State
+  // Pagination & Bot Protection State
   const [page, setPage] = useState(1);
   const [autoPageCount, setAutoPageCount] = useState(10);
+  const [pageDelay, setPageDelay] = useState(2); // Default 2 seconds
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -140,7 +141,8 @@ export default function App() {
           })),
           spreadsheetId,
           credentials,
-          totalPages: autoPageCount
+          totalPages: autoPageCount,
+          pageDelay: pageDelay // Pass delay to API
         })
       });
       const data = await response.json();
@@ -168,7 +170,7 @@ export default function App() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
       <header className="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-xl shadow-indigo-100">
+          <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-xl shadow-indigo-100 cursor-pointer" onClick={() => setCurrentStep('URL_INPUT')}>
             <Zap className="w-6 h-6" />
           </div>
           <div>
@@ -177,17 +179,29 @@ export default function App() {
           </div>
         </div>
         
-        <nav className="flex items-center gap-8 text-sm font-bold">
-          {['URL_INPUT', 'FIELD_PICKER', 'SHEETS_SETUP', 'MONITOR'].map((step, idx) => (
-            <div key={step} className="flex items-center gap-3">
-              <span className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${currentStep === step ? 'border-indigo-600 bg-indigo-50 text-indigo-600 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-300'}`}>
-                {idx + 1}
-              </span>
-              <span className={currentStep === step ? 'text-indigo-600' : 'text-slate-400'}>{step.replace('_', ' ')}</span>
-              {idx < 3 && <ChevronRight className="w-4 h-4 text-slate-200" />}
-            </div>
-          ))}
-        </nav>
+        <div className="flex items-center gap-6">
+          {tasks.some(t => t.status === 'active') && (
+            <button 
+              onClick={() => setCurrentStep('MONITOR')}
+              className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-indigo-100 transition-all border border-indigo-100"
+            >
+              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
+              LIVE MONITOR
+            </button>
+          )}
+
+          <nav className="flex items-center gap-8 text-sm font-bold">
+            {['URL_INPUT', 'FIELD_PICKER', 'SHEETS_SETUP', 'MONITOR'].map((step, idx) => (
+              <div key={step} className="flex items-center gap-3">
+                <span className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${currentStep === step ? 'border-indigo-600 bg-indigo-50 text-indigo-600 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-300'}`}>
+                  {idx + 1}
+                </span>
+                <span className={currentStep === step ? 'text-indigo-600' : 'text-slate-400'}>{step.replace('_', ' ')}</span>
+                {idx < 3 && <ChevronRight className="w-4 h-4 text-slate-200" />}
+              </div>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-8">
@@ -367,13 +381,31 @@ export default function App() {
                   </div>
                 </div>
                 
-                <div className="space-y-8">
+                <div className="space-y-6">
                   <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
                     <div className="flex justify-between items-center mb-6">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page Target</span>
                       <span className="text-2xl font-black text-indigo-400">{autoPageCount} PAGES</span>
                     </div>
                     <input type="number" min="1" value={autoPageCount} onChange={(e) => setAutoPageCount(Math.max(1, Number(e.target.value)))} className="w-full bg-slate-800 border-2 border-slate-700 rounded-2xl px-6 py-4 text-center font-black text-xl outline-none focus:border-indigo-500 transition-all" />
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-3xl p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bot Protection Delay</span>
+                      <span className="text-xs font-black text-indigo-400">{pageDelay}s PER PAGE</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                       <input 
+                         type="range" 
+                         min="1" 
+                         max="60" 
+                         value={pageDelay} 
+                         onChange={(e) => setPageDelay(Number(e.target.value))} 
+                         className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500" 
+                       />
+                       <span className="w-8 text-center font-mono font-black text-indigo-300 text-sm">{pageDelay}s</span>
+                    </div>
                   </div>
 
                   <button 
