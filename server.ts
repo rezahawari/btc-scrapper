@@ -66,6 +66,18 @@ function getPageUrl(baseUrl: string, pageNum: number) {
   }
 }
 
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+];
+
+function getRandomUA() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 async function runTask(taskId: string) {
   const task = tasks[taskId];
   if (!task) return;
@@ -97,12 +109,20 @@ async function runTask(taskId: string) {
       task.progress.logs.unshift(`[${new Date().toLocaleTimeString()}] Scraping Page ${currentPageNum}...`);
 
       try {
-        // 1. Fetch
+        // 1. Fetch with Stealth Headers
         const response = await axios.get(targetUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': getRandomUA(),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
             'Referer': 'https://www.google.com/'
           },
           timeout: 30000,
@@ -231,9 +251,10 @@ async function runTask(taskId: string) {
         // Continue to next page or fail? Let's continue for now but mark log
       }
 
-      // Small delay
-      const delayMs = (task.config.pageDelay || 1) * 1000;
-      await new Promise(r => setTimeout(r, delayMs));
+      // Small randomized delay (Jitter)
+      const baseDelay = (task.config.pageDelay || 1) * 1000;
+      const jitter = (Math.random() * 0.4 + 0.8); // 80% to 120% of base delay
+      await new Promise(r => setTimeout(r, baseDelay * jitter));
     }
 
     if (task.status !== 'cancelled') {
