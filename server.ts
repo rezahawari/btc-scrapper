@@ -80,6 +80,9 @@ async function runTask(taskId: string) {
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    let consecutiveBotBlocks = 0;
+    const MAX_BOT_RETRIES = 3;
+
     for (let i = 0; i < task.progress.total; i++) {
       if (tasks[taskId]?.status === 'cancelled') {
         task.progress.logs.unshift(`[${new Date().toLocaleTimeString()}] Task cancelled by user.`);
@@ -103,11 +106,38 @@ async function runTask(taskId: string) {
             'Referer': 'https://www.google.com/'
           },
           timeout: 30000,
-          family: 4 // MEMAKSA IPv4 - Solusi utama ETIMEDOUT di Linux
+          family: 4 
         });
         
         const html = response.data;
         const $ = cheerio.load(html);
+
+        // Check for common bot protection pages or ad-interstitials
+        const pageTitle = $('title').text();
+        const bodyText = $('body').text();
+        const isBotPage = pageTitle.includes('Are you human?') || pageTitle.includes('Cloudflare') || pageTitle.includes('Attention Required');
+        const isAdPage = pageTitle.includes('google_vignette') || bodyText.includes('google_vignette') || html.includes('google_vignette');
+
+        if (isBotPage || isAdPage) {
+          consecutiveBotBlocks++;
+          const reason = isBotPage ? 'BOT PROTECTION' : 'AD INTERSTITIAL';
+          
+          if (consecutiveBotBlocks <= MAX_BOT_RETRIES) {
+            const waitTime = 30 * consecutiveBotBlocks;
+            task.progress.logs.unshift(`[${new Date().toLocaleTimeString()}] ⚠️ ${reason} DETECTED ("${pageTitle}"). Refreshing in ${waitTime}s...`);
+            await new Promise(r => setTimeout(r, waitTime * 1000));
+            i--; 
+            continue;
+          } else {
+            task.status = 'failed';
+            task.progress.logs.unshift(`[${new Date().toLocaleTimeString()}] 🛑 PERMANENT BLOCK: ${reason} persistent. Stopping task.`);
+            break;
+          }
+        }
+
+        // Reset block counter on successful page
+        consecutiveBotBlocks = 0;
+
         const scrapeResult: any = {};
         
         let foundSomethingAtAll = false;
@@ -294,8 +324,11 @@ async function startServer() {
       const $ = cheerio.load(response.data);
       const baseUrl = new URL(targetUrl);
 
-      // Remove existing scripts to prevent lag and conflicts
+      // Remove existing scripts, ads, and common overlay elements
       $('script').remove();
+      $('ins.adsbygoogle').remove();
+      $('[id*="google_ads"]').remove();
+      $('[class*="google_vignette"]').remove();
       
       // Add <base> tag to handle all relative URLs automatically and efficiently
       $('head').prepend(`<base href="${baseUrl.origin}${baseUrl.pathname}">`);
